@@ -11,6 +11,14 @@
 
 #include "hipSYCL/sycl/libkernel/sscp/builtins/detail/reduction.hpp"
 #include "hipSYCL/sycl/libkernel/sscp/builtins/reduction.hpp"
+#include "hipSYCL/sycl/libkernel/sscp/builtins/spirv/spirv_common.hpp"
+
+
+template <typename dataT>
+dataT __spirv_GroupFAdd(__spv::ScopeFlag scope, __spv::GroupOperation gOp, dataT value);
+
+template <typename dataT>
+dataT __spirv_GroupIAdd(__spv::ScopeFlag scope, __spv::GroupOperation gOp, dataT value);
 
 #define ACPP_SUBGROUP_FLOAT_REDUCTION(type)                                                        \
   HIPSYCL_SSCP_CONVERGENT_BUILTIN                                                                  \
@@ -18,7 +26,8 @@
                                                     __acpp_##type x) {                             \
     switch (op) {                                                                                  \
     case __acpp_sscp_algorithm_op::plus:                                                           \
-      return hipsycl::libkernel::sscp::sg_reduce<__acpp_sscp_algorithm_op::plus>(x);               \
+      return __spirv_GroupFAdd(__spv::ScopeFlag::Subgroup,                                         \
+                               __spv::GroupOperation::GroupOperationReduce, x);                    \
     case __acpp_sscp_algorithm_op::multiply:                                                       \
       return hipsycl::libkernel::sscp::sg_reduce<__acpp_sscp_algorithm_op::multiply>(x);           \
     case __acpp_sscp_algorithm_op::min:                                                            \
@@ -40,7 +49,8 @@ ACPP_SUBGROUP_FLOAT_REDUCTION(f64)
                                                          __acpp_##type x) {                        \
     switch (op) {                                                                                  \
     case __acpp_sscp_algorithm_op::plus:                                                           \
-      return hipsycl::libkernel::sscp::sg_reduce<__acpp_sscp_algorithm_op::plus>(x);               \
+      return __spirv_GroupIAdd(__spv::ScopeFlag::Subgroup,                                         \
+                               __spv::GroupOperation::GroupOperationReduce, x);                    \
     case __acpp_sscp_algorithm_op::multiply:                                                       \
       return hipsycl::libkernel::sscp::sg_reduce<__acpp_sscp_algorithm_op::multiply>(x);           \
     case __acpp_sscp_algorithm_op::min:                                                            \

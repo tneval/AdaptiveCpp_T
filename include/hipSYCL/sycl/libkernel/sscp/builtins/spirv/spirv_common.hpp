@@ -13,8 +13,6 @@
 
 #include "hipSYCL/sycl/libkernel/sscp/builtins/builtin_config.hpp"
 
-
-
 namespace __spv {
 
 enum ScopeFlag : __acpp_uint32 {
@@ -23,6 +21,12 @@ enum ScopeFlag : __acpp_uint32 {
   Workgroup = 2,
   Subgroup = 3,
   Invocation = 4,
+};
+
+enum GroupOperation {
+  GroupOperationReduce = 0,
+  GroupOperationInclusiveScan = 1,
+  GroupOperationExclusiveScan = 2,
 };
 
 enum MemorySemanticsMaskFlag : __acpp_uint32 {
@@ -40,7 +44,6 @@ enum MemorySemanticsMaskFlag : __acpp_uint32 {
 };
 
 }
-
 
 __attribute__((always_inline)) __spv::ScopeFlag
 inline get_spirv_scope(__acpp_sscp_memory_scope scope) {
@@ -70,7 +73,6 @@ inline get_spirv_memory_semantics(__acpp_sscp_memory_order order) {
   else // Relaxed
     return __spv::MemorySemanticsMaskFlag::None;
 }
-
 
 #define __spirv_global __attribute__((address_space(1)))
 #define __spirv_local __attribute__((address_space(3)))
