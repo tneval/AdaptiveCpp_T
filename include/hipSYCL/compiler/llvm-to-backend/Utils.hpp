@@ -83,7 +83,12 @@ inline auto withPassBuilder(F&& handler) {
   llvm::FunctionAnalysisManager FAM;
   llvm::CGSCCAnalysisManager CGAM;
   llvm::ModuleAnalysisManager MAM;
-  llvm::PassBuilder PB;
+  llvm::PassInstrumentationCallbacks PIC;
+  llvm::PassBuilder PB(
+      nullptr,
+      llvm::PipelineTuningOptions(),
+      std::nullopt,
+      &PIC);
   PB.registerModuleAnalyses(MAM);
   PB.registerCGSCCAnalyses(CGAM);
   PB.registerFunctionAnalyses(FAM);
@@ -99,7 +104,12 @@ inline auto withPassBuilderAndMAM(F&& handler) {
   llvm::FunctionAnalysisManager FAM;
   llvm::CGSCCAnalysisManager CGAM;
   llvm::ModuleAnalysisManager MAM;
-  llvm::PassBuilder PB;
+  llvm::PassInstrumentationCallbacks PIC;
+  llvm::PassBuilder PB(
+      nullptr,
+      llvm::PipelineTuningOptions(),
+      std::nullopt,
+      &PIC);
   PB.registerModuleAnalyses(MAM);
   PB.registerCGSCCAnalyses(CGAM);
   PB.registerFunctionAnalyses(FAM);
@@ -187,7 +197,7 @@ public:
 #endif
         }
         Params.push_back(NewT);
-      
+
       } else {
         Params.push_back(CurrentParamType);
       }
@@ -212,7 +222,7 @@ public:
             assert(ValT);
 
             NewF->removeParamAttr(i, PresentAttr);
-            addByValueArgAttribute(M, *NewF, i, ValT);          
+            addByValueArgAttribute(M, *NewF, i, ValT);
           }
         // Otherwise we might be dealing with a pointer that needs to be wrapped in
         // a by-value struct
@@ -246,8 +256,8 @@ public:
             llvm::SmallVector<llvm::Value*> GEPIndices{Zero, Zero};
             auto *GEPInst = llvm::GetElementPtrInst::CreateInBounds(
               WrapperType, NewF->getArg(i), llvm::ArrayRef<llvm::Value *>{GEPIndices}, "", BB);
-            
-            
+
+
             auto* WrappedTy = GEPInst->getResultElementType();
             auto* LoadInst = new llvm::LoadInst{WrappedTy, GEPInst, "", BB};
 
@@ -258,7 +268,7 @@ public:
             } else {
               CallArg = LoadInst;
             }
-            
+
           } else {
             // We are dealing with a USM pointer
             if (NewPT->getAddressSpace() != OldPT->getAddressSpace()) {
@@ -268,11 +278,11 @@ public:
             // The else branch is unnecessary, because by default we just
             // pass in the original function argument.
           }
-        } 
-        
+        }
+
         CallArgs.push_back(CallArg);
       }
-  
+
       assert(CallArgs.size() == F->getFunctionType()->getNumParams());
       for(int i = 0; i < CallArgs.size(); ++i) {
         assert(CallArgs[i]->getType() == F->getFunctionType()->getParamType(i));
@@ -329,14 +339,14 @@ private:
 #else
         llvm::PointerType::get(OriginalPointerType->getContext(), PointerAddressSpace);
 #endif
-    
+
     auto it = PointerWrapperTypes.find(WrappedType);
     if(it != PointerWrapperTypes.end())
       return it->second;
-    
+
     std::string Name = "__acpp_sscp_pointer_wrapper." + std::to_string(++WrapperCounter);
     llvm::SmallVector<llvm::Type*> Elements {WrappedType};
-    
+
     llvm::Type* NewType = llvm::StructType::create(M.getContext(), Elements, Name);
 
     PointerWrapperTypes[WrappedType] = NewType;
@@ -409,7 +419,7 @@ int executeAndWait(
 template <int N>
 inline void replaceLLVMIntrinsicsWithAcppBuiltins(
     llvm::Module &M, const std::array<std::array<const char *, 2>, N> &IntrinsicReplacementMap) {
-  
+
   for(auto& RM : IntrinsicReplacementMap) {
     if(auto* F = M.getFunction(RM[0])) {
       llvm::Function* Replacement = M.getFunction(RM[1]);

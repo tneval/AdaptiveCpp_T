@@ -39,6 +39,7 @@
 #include <string>
 #include <system_error>
 #include <vector>
+#include <cstdlib>
 
 namespace hipsycl {
 namespace compiler {
@@ -423,9 +424,46 @@ AddressSpaceMap LLVMToSpirvTranslator::getAddressSpaceMap() const {
 }
 
 bool LLVMToSpirvTranslator::optimizeFlavoredIR(llvm::Module& M, PassHandler& PH) {
-  bool Result = LLVMToBackendTranslator::optimizeFlavoredIR(M, PH);
-  if(!Result)
-    return false;
+
+  if(std::getenv(ACPP_DISABLE_LOOP_ROTATE) != nullptr){
+     // Disable LoopRotate pass.
+    PH.PIC.registerShouldRunOptionalPassCallback(
+          [](llvm::StringRef PassID, llvm::Any IR) {
+              if (PassID.contains("LoopRotate")) {
+                  return false;
+              }
+              return true;
+          });
+  }
+  assert(PH.PassBuilder);
+  assert(PH.ModuleAnalysisManager);
+
+    // silence optimization remarks,..
+  M.getContext().setDiagnosticHandlerCallBack(
+#if LLVM_VERSION_MAJOR >= 19
+      [](const llvm::DiagnosticInfo *DI, void *Context) {
+        llvm::DiagnosticPrinterRawOStream DP(llvm::errs());
+        if (DI->getSeverity() == llvm::DS_Error) {
+          llvm::errs() << "LLVMToBackend: Error: ";
+          DI->print(DP);
+          llvm::errs() << "\n";
+        }
+      });
+#else
+      [](const llvm::DiagnosticInfo &DI, void *Context) {
+        llvm::DiagnosticPrinterRawOStream DP(llvm::errs());
+        if (DI.getSeverity() == llvm::DS_Error) {
+          llvm::errs() << "LLVMToBackend: Error: ";
+          DI.print(DP);
+          llvm::errs() << "\n";
+        }
+      });
+#endif
+
+  llvm::ModulePassManager MPM =
+      PH.PassBuilder->buildPerModuleDefaultPipeline(llvm::OptimizationLevel::O3);
+
+  MPM.run(M, *PH.ModuleAnalysisManager);
 
   // Optimizations may introduce the freeze instruction, which is not supported
   // by llvm-spirv.
@@ -447,7 +485,7 @@ bool LLVMToSpirvTranslator::optimizeFlavoredIR(llvm::Module& M, PassHandler& PH)
   for(auto* I : InstsToRemove)
     I->eraseFromParent();
 
-  return Result;
+  return true;
 }
 
 void LLVMToSpirvTranslator::migrateKernelProperties(llvm::Function* From, llvm::Function* To) {
