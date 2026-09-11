@@ -20,6 +20,8 @@
 #include "hipSYCL/common/debug.hpp"
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/Constants.h>
+#include <llvm/IR/DiagnosticInfo.h>
+#include <llvm/IR/DiagnosticPrinter.h>
 #include <llvm/IR/GlobalVariable.h>
 #include <llvm/ADT/SmallVector.h>
 #include <llvm/Bitcode/BitcodeWriter.h>
@@ -424,10 +426,13 @@ AddressSpaceMap LLVMToSpirvTranslator::getAddressSpaceMap() const {
 }
 
 bool LLVMToSpirvTranslator::optimizeFlavoredIR(llvm::Module& M, PassHandler& PH) {
+  assert(PH.PassBuilder);
+  assert(PH.ModuleAnalysisManager);
 
-  if(std::getenv(ACPP_DISABLE_LOOP_ROTATE) != nullptr){
+  if(std::getenv("ACPP_DISABLE_LOOP_ROTATE") != nullptr){
      // Disable LoopRotate pass.
-    PH.PIC.registerShouldRunOptionalPassCallback(
+    auto *PIC = PH.PassBuilder->getPassInstrumentationCallbacks();
+    PIC->registerShouldRunOptionalPassCallback(
           [](llvm::StringRef PassID, llvm::Any IR) {
               if (PassID.contains("LoopRotate")) {
                   return false;
@@ -435,8 +440,6 @@ bool LLVMToSpirvTranslator::optimizeFlavoredIR(llvm::Module& M, PassHandler& PH)
               return true;
           });
   }
-  assert(PH.PassBuilder);
-  assert(PH.ModuleAnalysisManager);
 
     // silence optimization remarks,..
   M.getContext().setDiagnosticHandlerCallBack(
